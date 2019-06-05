@@ -9,6 +9,7 @@
 #include "LBFGS/LineSearchBacktracking.h"
 #include "LBFGS/LineSearchBracketing.h"
 
+#include <iostream>
 
 namespace LBFGSpp {
 
@@ -78,8 +79,34 @@ public:
     /// \return Number of iterations used.
     ///
     template <typename Foo>
-    inline int minimize(Foo& f, Vector& x, Scalar& fx)
+    inline int minimize(Foo& f_, Vector& x, Scalar& fx, bool use_finite_difference=false)
     {
+        auto f = [&](const Vector& curRVv, Vector& grad) {
+            Scalar fx = f_(curRVv, grad);
+
+            // Todo run a big simulation to see if there is a differnce between using fd or not.
+            if(use_finite_difference) {
+                Scalar h = Scalar(1e-7);
+                Vector dx = Vector::Zero(x.size());
+                Vector fd_grad(x.size());
+                Vector _grad(x.size());
+                for (int i = 0; i < x.size(); i++) {
+                    dx(i) = h;
+                    fd_grad(i) = (f_(x + dx, _grad) - fx)/h;
+                    dx(i) = Scalar(0.0);
+                }
+                
+                std::cout << "Gradient difference: " << (fd_grad - m_grad).norm() << std::endl;
+                Eigen::Matrix<Scalar, -1, -1>  gg(2, fd_grad.size());
+                gg << m_grad,
+                        fd_grad;
+                std::cout << "Gradient difference: " << gg.transpose() << std::endl;
+                grad = fd_grad;
+            }
+
+            return fx;
+        };
+
         const int n = x.size();
         const int fpast = m_param.past;
         reset(n);
